@@ -1,0 +1,227 @@
+---
+title: "NeoFlow report" 
+date: "`r Sys.Date()`"
+
+output:
+  BiocStyle::html_document:
+    toc_float: true
+params:
+  input_dir: ""
+  prefix: ""
+  out_dir: ""
+
+vignette: >
+  %\VignetteIndexEntry{NeoFlow report}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteKeywords{Mass Spectrometry, Proteomics, Genomics, neoantigen }
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+library(png)
+library(kableExtra)
+library(tidyr)
+library(dplyr)
+library(stringr)
+library(formattable)
+#library(DT)
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+```{r Import data, echo=FALSE}
+input_dir <- params$input_dir
+use_log <- c(1,1)
+prefix <- params$prefix
+out_dir <- params$out_dir
+```
+
+```{r echo=FALSE}
+knitr::opts_chunk$set(cache = TRUE, warning = FALSE, 
+                      message = FALSE, cache.lazy = FALSE)
+```
+
+```{r echo=FALSE}
+################################################################################
+############################# functions ########################################
+# Generate a summary file which contain everything we need for downstream analysis
+# This file contains the following information:
+# mutation information at DNA level
+# mutation information at protein level
+# HLA type
+# epitope
+# binding affinity
+# variant peptide information
+load_data=function(neoflow_dir="./",out_dir="./"){
+    dir.create(out_dir,showWarnings = FALSE,recursive = TRUE)
+    if(str_detect(neoflow_dir,pattern = "^s3:")){
+        neoflow_dir_local <- paste0(out_dir,"/neoflow_dir")
+        dir.create(neoflow_dir_local,showWarnings = FALSE,recursive = TRUE)
+        s3_cmd <- paste0("aws s3 sync ",neoflow_dir,"neoantigen_prediction/ ",neoflow_dir_local)
+        system(s3_cmd)
+        neoflow_dir <- neoflow_dir_local
+    }
+    fs <- list.files(path = neoflow_dir,pattern = ".tsv",include.dirs = TRUE,recursive = TRUE,full.names = TRUE)
+    dd <- lapply(fs, function(k){
+        a <- data.table::fread(k,colClasses=list(character=c("Chr","Start","End","Ref","Alt"))) %>%
+          select(Chr,Start,End,Ref,Alt,Variant_Type,Gene,mRNA,Variant_Start,Variant_End,AA_before,AA_after,Neoepitope,HLA_type,netMHCpan_binding_affinity_nM,protein_var_evidence_pep) %>%
+          distinct()
+        nm <- dirname(k) %>% basename() %>% str_split(pattern = "_") %>% unlist()
+        a$sample <- nm[length(nm)]
+        return(a)
+
+      }) %>% bind_rows()
+
+    dd$pep_evidence <- ifelse(dd$protein_var_evidence_pep=="-","No","Yes")
+    return(dd)
+}
+
+## generate data for overview barplot
+generate_summary_file=function(x,mhc_filter=150,prefix="test"){
+    ################################################################################
+    ## output summary information
+    res <- x
+    res_filtered <- res %>% filter(netMHCpan_binding_affinity_nM <= mhc_filter)
+    #cat("Summary information:\n")
+    output_stat <- list()
+    output_stat$total_somatic_mutations <- res %>% 
+        select(Chr,Start,End,Ref,Alt,sample) %>% 
+        distinct() %>% group_by(sample) %>%
+        summarise(total_somatic_mutations=n())
+    
+    
+    output_stat$neoantigen_somatic_mutations <- res_filtered %>% 
+        select(Chr,Start,End,Ref,Alt,sample) %>% 
+        distinct() %>% group_by(sample) %>%
+        summarise(neoantigen_somatic_mutations=n())
+    
+    output_stat$neoantigen_somatic_mutations_with_pro_var <- res_filtered %>% 
+        filter(protein_var_evidence_pep!="-") %>% 
+        select(Chr,Start,End,Ref,Alt,sample) %>% 
+        distinct() %>% group_by(sample) %>%
+        summarise(neoantigen_somatic_mutations_with_pro_var=n())
+    
+    output_stat$neoantigen <- res_filtered %>% 
+        select(Neoepitope,sample) %>% 
+        distinct() %>% group_by(sample) %>%
+        summarise(neoantigen=n())
+    
+    output_stat$neoantigen_with_pro_var <- res_filtered %>% 
+        filter(protein_var_evidence_pep!="-") %>% 
+        select(Neoepitope,sample) %>% 
+        distinct() %>% group_by(sample) %>%
+        summarise(neoantigen_with_pro_var=n())
+    
+    res_stat <- merge(output_stat$total_somatic_mutations,output_stat$neoantigen_somatic_mutations,
+                      by="sample",all.x=TRUE) %>%
+        merge(output_stat$neoantigen_somatic_mutations_with_pro_var,by="sample",all.x=TRUE) %>%
+        merge(output_stat$neoantigen,by="sample",all.x=TRUE) %>%
+        merge(output_stat$neoantigen_with_pro_var,by="sample",all.x=TRUE)
+    
+    for(i in 2:ncol(res_stat)){
+        y <- res_stat[,i]
+        y[is.na(y)] <- 0
+        res_stat[,i] <- y
+    }
+    
+    return(res_stat)
+}
+
+## overview barplot
+plot_hist=function(x,use_log,fig,type="somatic"){
+    a <- x %>% arrange(desc(total_somatic_mutations))
+    n_samples <- nrow(a)
+    png(fig,width = 1300,height = 500,res = 150)
+    library(RColorBrewer)
+    par(mfrow=c(4,1))
+    par(mar=c(0,4,1,1),las=2,cex.axis=1.2)
+    barplot(a$total_somatic_mutations,names.arg = "",col="#8FBC94",log=ifelse(use_log[1]==1,"y",""),ylim = c(min(a$total_somatic_mutations),1.3*max(a$total_somatic_mutations)));graphics::box()
+    text(x=par("usr")[2]*0.98,y=max(a$total_somatic_mutations)**0.95,
+         labels=ifelse(type=="somatic","# nonsynonymous somatic mutations","# fusion genes"),
+         cex=1.5,pos=2)
+    
+    par(mar=c(0,4,0,1),las=2,cex.axis=1.2)
+    barplot(a$neoantigen_somatic_mutations,col="gray",names.arg = "",log=ifelse(use_log[2]==1,"y",""),ylim = c(min(a$neoantigen_somatic_mutations),1.3*max(a$neoantigen_somatic_mutations)));graphics::box()
+    text(x=par("usr")[2]*0.98,y=max(a$neoantigen_somatic_mutations)**0.95,
+         labels=ifelse(type=="somatic","# nonsynonymous somatic mutations with neoantigen candidates (binding affinity < 150nM)","# fusion genes with neoantigen candidates (binding affinity < 150nM)"),
+         cex=1.5,pos=2)
+    
+    par(mar=c(0,4,0,1),cex.axis=1.2,las=2)
+    barplot(a$neoantigen_somatic_mutations_with_pro_var,names.arg = "",col="lightblue",ylim = c(min(a$neoantigen_somatic_mutations_with_pro_var),1.3*max(a$neoantigen_somatic_mutations_with_pro_var)));graphics::box()
+    text(x=par("usr")[2]*0.98,y=max(a$neoantigen_somatic_mutations_with_pro_var)**0.95,
+         labels=ifelse(type=="somatic","# nonsynonymous somatic mutations with neoantigen candidates (binding affinity < 150nM) \n+ protein evidence","# fusion genes with neoantigen candidates (binding affinity < 150nM) + protein evidence"),
+         cex=1.5,pos=2)
+    
+    par(mar=c(3,4,0,1),cex.axis=1,mgp=c(2,1,0))
+    barplot(a$neoantigen_with_pro_var,
+            names.arg = "",
+            las=2,
+            col="red",
+            ylim = c(0,1.3*max(a$neoantigen_with_pro_var)),xlab="Sample",cex.lab=1.2);graphics::box()
+    n_samples_with_protein <- sum(a$neoantigen_with_pro_var>=1)
+    text(x=par("usr")[2]*0.98,y=max(a$neoantigen_with_pro_var)*0.95,
+         labels=paste("neoepitope   ",n_samples_with_protein,"/",n_samples,sep = ""),
+         cex=1.5,pos=2)
+   dev.off()
+}
+
+## variant peptide identification summary
+
+```
+
+
+# Introduction
+
+
+
+
+```{r load_data, echo=FALSE,warning=FALSE,message=FALSE,cache=TRUE}
+raw_data <- load_data(input_dir,out_dir = out_dir)
+```
+
+# Neoantigen discovery result overview
+
+```{r overview fig, echo=FALSE, fig.align='center', results='asis'}
+sample_total <- NA
+if(nrow(raw_data %>% filter(Variant_Type!="fusion")) >= 1){
+    res1 <- raw_data %>% filter(Variant_Type!="fusion") %>% generate_summary_file() 
+    fig <- paste(out_dir,"/",prefix,"_somatic_mutation.png",sep = "")
+    res1 %>% plot_hist(use_log = use_log,fig=fig)
+    sample_total <- res1$sample %>% unique()
+    knitr::include_graphics(fig %>% normalizePath)
+    cat("Somatic mutation derived neoantigen")
+    cat("![](",fig,")")
+}
+if(nrow(raw_data %>% filter(Variant_Type=="fusion")) >= 1){
+    res2 <- raw_data %>% filter(Variant_Type=="fusion") %>% generate_summary_file() 
+    fig <- paste(out_dir,"/",prefix,"_fusion.png",sep = "")
+    res2 %>% plot_hist(use_log = c(0,0),fig=paste(prefix,"_fusion.png",sep = ""),type = "fusion")
+    sample_total <- c(sample_total,res2$sample) %>% unique()
+    knitr::include_graphics(fig %>% normalizePath)
+    cat("Gene fusion derived neoantigen")
+    cat("![](",fig,")")
+}
+
+```
+
+# Neoantigen discovery result detail
+
+```{r o_table, echo=FALSE}
+sample_somatic_mutation <- res1 %>% filter(neoantigen_somatic_mutations_with_pro_var>=1)
+sample_fusion <- res2 %>% filter(neoantigen_somatic_mutations_with_pro_var>=1)
+odt <- data.frame(Item=c("Total samples",
+                  "Total samples with somatic protein evidence",
+                  "Total samples with fusion protein evidence",
+                  "Total samples after combine two evidences"),
+           Value=c(sample_total %>% length,
+                   nrow(sample_somatic_mutation),
+                   nrow(sample_fusion),
+                   c(sample_somatic_mutation$sample,sample_fusion$sample) %>% unique() %>% length))
+kable(odt,"html",escape = FALSE) %>%
+  kable_styling(bootstrap_options = "striped", full_width = F) %>%
+    scroll_box(height = "400px",width = "100%")
+```
+
+
+
+
