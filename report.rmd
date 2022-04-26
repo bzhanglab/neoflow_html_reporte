@@ -155,12 +155,21 @@ plot_hist=function(x,use_log,fig,type="somatic",min_n_sample_name=50){
          cex=1.5,pos=2)
     
     par(mar=c(3,4,0,1),cex.axis=1,mgp=c(2,1,0))
-    barplot(a$neoantigen_with_pro_var,
-            names.arg = ifelse(nrow(a)>min_n_sample_name,"",a$sample),
-            cex.names=0.4,
-            las=2,
-            col="red",
-            ylim = c(0,1.3*max(a$neoantigen_with_pro_var)),xlab="Sample",cex.lab=1.2);graphics::box()
+    if(nrow(a)<=min_n_sample_name){
+        barplot(a$neoantigen_with_pro_var,
+                names.arg = a$sample,
+                cex.names=0.5,
+                las=2,
+                col="red",
+                ylim = c(0,1.3*max(a$neoantigen_with_pro_var)),xlab="",cex.lab=1.2)
+    }else{
+        barplot(a$neoantigen_with_pro_var,
+                names.arg = "",
+                las=2,
+                col="red",
+                ylim = c(0,1.3*max(a$neoantigen_with_pro_var)),xlab="Sample",cex.lab=1.2)
+    }
+    graphics::box()
     n_samples_with_protein <- sum(a$neoantigen_with_pro_var>=1)
     text(x=par("usr")[2]*0.98,y=max(a$neoantigen_with_pro_var)*0.95,
          labels=paste("neoepitope   ",n_samples_with_protein,"/",n_samples,sep = ""),
