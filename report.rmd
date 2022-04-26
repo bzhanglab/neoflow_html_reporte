@@ -131,6 +131,8 @@ generate_summary_file=function(x,mhc_filter=150,prefix="test"){
 
 ## overview barplot
 plot_hist=function(x,use_log,fig,type="somatic",min_n_sample_name=50){
+    plot_data_path <- paste(dirname(fig),"/hist_",type,"_plot_data.rda",sep="")
+    save(x,use_log,fig,type,min_n_sample_name,file=plot_data_path)
     a <- x %>% arrange(desc(total_somatic_mutations))
     n_samples <- nrow(a)
     png(fig,width = 1300,height = 500,res = 150)
