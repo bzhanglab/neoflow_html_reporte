@@ -9,6 +9,7 @@ params:
   input_dir: ""
   prefix: ""
   out_dir: ""
+  min_n_sample_name: 50
 
 vignette: >
   %\VignetteIndexEntry{NeoFlow report}
@@ -34,6 +35,7 @@ input_dir <- params$input_dir
 use_log <- c(1,1)
 prefix <- params$prefix
 out_dir <- params$out_dir
+min_n_sample_name <- params$min_n_sample_name
 ```
 
 ```{r echo=FALSE}
@@ -128,7 +130,7 @@ generate_summary_file=function(x,mhc_filter=150,prefix="test"){
 }
 
 ## overview barplot
-plot_hist=function(x,use_log,fig,type="somatic"){
+plot_hist=function(x,use_log,fig,type="somatic",min_n_sample_name=50){
     a <- x %>% arrange(desc(total_somatic_mutations))
     n_samples <- nrow(a)
     png(fig,width = 1300,height = 500,res = 150)
@@ -154,7 +156,7 @@ plot_hist=function(x,use_log,fig,type="somatic"){
     
     par(mar=c(3,4,0,1),cex.axis=1,mgp=c(2,1,0))
     barplot(a$neoantigen_with_pro_var,
-            names.arg = "",
+            names.arg = ifelse(nrow(a)>min_n_sample_name,"",a$sample),
             las=2,
             col="red",
             ylim = c(0,1.3*max(a$neoantigen_with_pro_var)),xlab="Sample",cex.lab=1.2);graphics::box()
