@@ -198,7 +198,7 @@ sample_total <- NA
 if(nrow(raw_data %>% filter(Variant_Type!="fusion")) >= 1){
     res1 <- raw_data %>% filter(Variant_Type!="fusion") %>% generate_summary_file() 
     fig <- paste(out_dir,"/",prefix,"_somatic_mutation.png",sep = "")
-    res1 %>% plot_hist(use_log = use_log,fig=fig)
+    res1 %>% plot_hist(use_log = use_log,fig=fig,min_n_sample_name=min_n_sample_name)
     sample_total <- res1$sample %>% unique()
     knitr::include_graphics(fig %>% normalizePath)
     cat("Somatic mutation derived neoantigen")
@@ -207,7 +207,7 @@ if(nrow(raw_data %>% filter(Variant_Type!="fusion")) >= 1){
 if(nrow(raw_data %>% filter(Variant_Type=="fusion")) >= 1){
     res2 <- raw_data %>% filter(Variant_Type=="fusion") %>% generate_summary_file() 
     fig <- paste(out_dir,"/",prefix,"_fusion.png",sep = "")
-    res2 %>% plot_hist(use_log = c(0,0),fig=paste(prefix,"_fusion.png",sep = ""),type = "fusion")
+    res2 %>% plot_hist(use_log = c(0,0),fig=paste(prefix,"_fusion.png",sep = ""),type = "fusion",min_n_sample_name=min_n_sample_name)
     sample_total <- c(sample_total,res2$sample) %>% unique()
     knitr::include_graphics(fig %>% normalizePath)
     cat("Gene fusion derived neoantigen")
