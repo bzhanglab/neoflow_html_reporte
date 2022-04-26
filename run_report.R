@@ -2,6 +2,7 @@ library("rmarkdown")
 run_reporter=function(x,out_dir="./",prefix="test"){
     rmd <- "report.rmd"
     x <- normalizePath(x)
+    out_dir <- normalizePath(out_dir)
     work_dir <- dirname(x)
     cat("Input file:",x,"\n")
     cat("Work dir:",work_dir,"\n")
