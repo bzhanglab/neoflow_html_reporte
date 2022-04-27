@@ -10,6 +10,7 @@ params:
   prefix: ""
   out_dir: ""
   min_n_sample_name: 50
+  mhc_filter: 150
 
 vignette: >
   %\VignetteIndexEntry{NeoFlow report}
@@ -36,6 +37,7 @@ use_log <- c(1,1)
 prefix <- params$prefix
 out_dir <- params$out_dir
 min_n_sample_name <- params$min_n_sample_name
+mhc_filter <- params$mhc_filter
 ```
 
 ```{r echo=FALSE}
@@ -130,7 +132,7 @@ generate_summary_file=function(x,mhc_filter=150,prefix="test"){
 }
 
 ## overview barplot
-plot_hist=function(x,use_log,fig,type="somatic",min_n_sample_name=50){
+plot_hist=function(x,use_log,fig,type="somatic",min_n_sample_name=50,mhc_filter=150){
     plot_data_path <- paste(dirname(fig),"/hist_",type,"_plot_data.rda",sep="")
     save(x,use_log,fig,type,min_n_sample_name,file=plot_data_path)
     a <- x %>% arrange(desc(total_somatic_mutations))
@@ -147,13 +149,17 @@ plot_hist=function(x,use_log,fig,type="somatic",min_n_sample_name=50){
     par(mar=c(0,4,0,1),las=2,cex.axis=1.2)
     barplot(a$neoantigen_somatic_mutations,col="gray",names.arg = "",log=ifelse(use_log[2]==1,"y",""),ylim = c(min(a$neoantigen_somatic_mutations),1.3*max(a$neoantigen_somatic_mutations)));graphics::box()
     text(x=par("usr")[2]*0.98,y=max(a$neoantigen_somatic_mutations)**0.95,
-         labels=ifelse(type=="somatic","# nonsynonymous somatic mutations with neoantigen candidates (binding affinity < 150nM)","# fusion genes with neoantigen candidates (binding affinity < 150nM)"),
+         labels=ifelse(type=="somatic",
+         paste("# nonsynonymous somatic mutations with neoantigen candidates (binding affinity < ",mhc_filter,"nM)",sep=""),
+         paste("# fusion genes with neoantigen candidates (binding affinity < ",mhc_filter,"nM)",sep="")),
          cex=1.5,pos=2)
     
     par(mar=c(0,4,0,1),cex.axis=1.2,las=2)
     barplot(a$neoantigen_somatic_mutations_with_pro_var,names.arg = "",col="lightblue",ylim = c(min(a$neoantigen_somatic_mutations_with_pro_var),1.3*max(a$neoantigen_somatic_mutations_with_pro_var)));graphics::box()
     text(x=par("usr")[2]*0.98,y=max(a$neoantigen_somatic_mutations_with_pro_var)**0.95,
-         labels=ifelse(type=="somatic","# nonsynonymous somatic mutations with neoantigen candidates (binding affinity < 150nM) \n+ protein evidence","# fusion genes with neoantigen candidates (binding affinity < 150nM) + protein evidence"),
+         labels=ifelse(type=="somatic",
+         paste("# nonsynonymous somatic mutations with neoantigen candidates (binding affinity < ",mhc_filter,"nM) \n+ protein evidence",sep=""),
+         paste("# fusion genes with neoantigen candidates (binding affinity < ",mhc_filter,"nM) + protein evidence",sep="")),
          cex=1.5,pos=2)
     
     par(mar=c(3,4,0,1),cex.axis=1,mgp=c(2,1,0))
@@ -198,18 +204,18 @@ raw_data <- load_data(input_dir,out_dir = out_dir)
 ```{r overview fig, echo=FALSE, fig.align='center', results='asis'}
 sample_total <- NA
 if(nrow(raw_data %>% filter(Variant_Type!="fusion")) >= 1){
-    res1 <- raw_data %>% filter(Variant_Type!="fusion") %>% generate_summary_file() 
+    res1 <- raw_data %>% filter(Variant_Type!="fusion") %>% generate_summary_file(mhc_filter=mhc_filter) 
     fig <- paste(out_dir,"/",prefix,"_somatic_mutation.png",sep = "")
-    res1 %>% plot_hist(use_log = use_log,fig=fig,min_n_sample_name=min_n_sample_name)
+    res1 %>% plot_hist(use_log = use_log,fig=fig,min_n_sample_name=min_n_sample_name,mhc_filter=mhc_filter)
     sample_total <- res1$sample %>% unique()
     knitr::include_graphics(fig %>% normalizePath)
     cat("Somatic mutation derived neoantigen")
     cat("![](",fig,")")
 }
 if(nrow(raw_data %>% filter(Variant_Type=="fusion")) >= 1){
-    res2 <- raw_data %>% filter(Variant_Type=="fusion") %>% generate_summary_file() 
+    res2 <- raw_data %>% filter(Variant_Type=="fusion") %>% generate_summary_file(mhc_filter=mhc_filter) 
     fig <- paste(out_dir,"/",prefix,"_fusion.png",sep = "")
-    res2 %>% plot_hist(use_log = c(0,0),fig=paste(prefix,"_fusion.png",sep = ""),type = "fusion",min_n_sample_name=min_n_sample_name)
+    res2 %>% plot_hist(use_log = c(0,0),fig=paste(prefix,"_fusion.png",sep = ""),type = "fusion",min_n_sample_name=min_n_sample_name,mhc_filter=mhc_filter)
     sample_total <- c(sample_total,res2$sample) %>% unique()
     knitr::include_graphics(fig %>% normalizePath)
     cat("Gene fusion derived neoantigen")
