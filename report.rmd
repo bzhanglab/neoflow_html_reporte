@@ -242,7 +242,7 @@ if(nrow(raw_data %>% filter(Variant_Type=="fusion")) >= 1){
   odt <- data.frame(Item=c("Total samples",
                   "Total samples with somatic protein evidence"),
            Value=c(sample_total %>% length,
-                   nrow(sample_somatic_mutation))
+                   nrow(sample_somatic_mutation)))
 
 }
 kable(odt,"html",escape = FALSE) %>%
