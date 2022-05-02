@@ -228,8 +228,9 @@ if(nrow(raw_data %>% filter(Variant_Type=="fusion")) >= 1){
 
 ```{r o_table, echo=FALSE}
 sample_somatic_mutation <- res1 %>% filter(neoantigen_somatic_mutations_with_pro_var>=1)
-sample_fusion <- res2 %>% filter(neoantigen_somatic_mutations_with_pro_var>=1)
-odt <- data.frame(Item=c("Total samples",
+if(nrow(raw_data %>% filter(Variant_Type=="fusion")) >= 1){
+  sample_fusion <- res2 %>% filter(neoantigen_somatic_mutations_with_pro_var>=1)
+  odt <- data.frame(Item=c("Total samples",
                   "Total samples with somatic protein evidence",
                   "Total samples with fusion protein evidence",
                   "Total samples after combine two evidences"),
@@ -237,6 +238,13 @@ odt <- data.frame(Item=c("Total samples",
                    nrow(sample_somatic_mutation),
                    nrow(sample_fusion),
                    c(sample_somatic_mutation$sample,sample_fusion$sample) %>% unique() %>% length))
+}else{
+  odt <- data.frame(Item=c("Total samples",
+                  "Total samples with somatic protein evidence"),
+           Value=c(sample_total %>% length,
+                   nrow(sample_somatic_mutation))
+
+}
 kable(odt,"html",escape = FALSE) %>%
   kable_styling(bootstrap_options = "striped", full_width = F) %>%
     scroll_box(height = "400px",width = "100%")
